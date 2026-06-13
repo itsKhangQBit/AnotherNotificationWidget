@@ -14,7 +14,7 @@
         "License": "GPL-2.0+",
         "Name": "Another notification widget",
         "ServiceTypes": ["Plasma/Applet"],
-        "Version": "1.0a"
+        "Version": "2.0a"
     },
     "X-Plasma-API-Minimum-Version": "6.0",
     "X-Plasma-MainScript": "ui/main.qml"

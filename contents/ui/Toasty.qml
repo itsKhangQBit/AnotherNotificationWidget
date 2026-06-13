@@ -1,10 +1,9 @@
-import QtQuick 2.15
-import org.kde.plasma.core 2.1 as PlasmaCore
-import QtQuick.Layouts 1.15
-import QtQuick.Window 2.15
-import org.kde.plasma.components 3.0 as PlasmaComponents
-import org.kde.kirigami 2.19 as Kirigami
-import org.kde.ksvg as KSvg
+import QtQuick
+import org.kde.plasma.core as PlasmaCore
+import QtQuick.Layouts
+import QtQuick.Window
+import org.kde.plasma.components as PlasmaComponents
+import org.kde.kirigami as Kirigami
 
 PlasmaCore.Dialog {
     id: root
@@ -16,25 +15,33 @@ PlasmaCore.Dialog {
     property string contents: i18n("What is this notification?")
     property var notifIndex: 0
     property bool closing: false
+    property int timeoutinterval: 3000
 
     flags: Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus
-    location: PlasmaCore.Types.Floating
+    location: PlasmaCore.Types.TopEdge
 
-    width: 300
-    height: 96
+    width: 330
+    height: 120
 
     onVisibleChanged: {
         if (visible) {
-            x = Screen.width - width - 20;
-            y = 50;
+            root.x = Screen.width - root.width - Kirigami.Units.largeSpacing;
+            var offset = Kirigami.Units.smallSpacing;
+            var screenAvail = plasmoid.containment.availableScreenRect
+            var screenGeom = plasmoid.containment.screenGeometry
+            var screen = Qt.rect(screenAvail.x + screenGeom.x, screenAvail.y + screenGeom.y, screenAvail.width, screenAvail.height);
+            y = screen.y + panelSvg.margins.bottom + offset;
+
             delegateRoot.opacity = 1.0;
             autoTimeoutTimer.start();
         }
     }
 
+    hideOnWindowDeactivate: true
+
     function show() {
         Qt.callLater(function() {
-            root.visible = true;;
+            root.visible = true;
         });
     }
 
@@ -42,84 +49,98 @@ PlasmaCore.Dialog {
         if (root.closing) return;
         root.closing = true;
 
-        //root.x = Screen.width;
-        delegateRoot.opacity = 0.0;
-        exitDelayTimer.start();
+        delegateRoot.opacity = 0;
+        Qt.callLater(function() {
+            exitDelayTimer.start();
+        })
     }
 
-    mainItem: Rectangle {
+    mainItem: Item {
         id: delegateRoot
         width: root.width
         height: root.height
 
-        Component.onCompleted: {
-            opacity = Qt.binding(() => 1)
-            height = Qt.binding(() => root.height)
-        }
-
         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutQuad } }
 
-        scale: 1
-        color: Qt.rgba(1, 1, 1, 0.05)
-        radius: 4
-        border.color: Qt.rgba(1, 1, 1, 0.1)
+        Timer {
+            id: autoTimeoutTimer
+            interval: timeoutinterval
+            running: false
+            onTriggered: {
+                destroyme()
+            }
+        }
 
-        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+        Timer {
+            id: exitDelayTimer
+            interval: 250
+            running: false
+            repeat: false
+            onTriggered: {
+                root.visible = false;
+                root.destroy()
+            }
+        }
 
-        Item {
-            id: contentContainer
+        PlasmaComponents.ProgressBar {
+            id: timeoutBar
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 3
+            from: 0
+            to: timeoutinterval
+            value: timeoutinterval
+
+            NumberAnimation {
+                id: timeoutAnimation
+                target: timeoutBar
+                property: "value"
+                from: timeoutinterval
+                to: 0
+                duration: timeoutinterval
+                easing.type: Easing.Linear
+                running: autoTimeoutTimer.running
+            }
+        }
+
+        MouseArea {
+            id: toastArea
             anchors.fill: parent
+            hoverEnabled: true
+            preventStealing: true
+            propagateComposedEvents: true
 
-            Timer {
-                id: autoTimeoutTimer
-                interval: 3000
-                running: false
-                onTriggered: {
+            scale: 1
+
+            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+
+            onPressed: {
+                toastArea.scale = 0.95
+            }
+            onClicked: {
+                if (typeof win11Notif !== "undefined") {
+                    win11Notif.invokeDefaultAction(win11Notif.index(notifIndex, 0))
                     destroyme()
                 }
             }
-
-            Timer {
-                id: exitDelayTimer
-                interval: 250
-                running: false
-                repeat: false
-                onTriggered: {
-                    root.visible = false;
+            onReleased: { toastArea.scale = 1.0 }
+            onCanceled: { toastArea.scale = 1.0 }
+            onEntered: {
+                if (!root.closing) {
+                    autoTimeoutTimer.stop(); // you hover you stop clok if time != 0
                 }
             }
-
-            MouseArea {
-                id: toastArea
-                anchors.fill: parent
-
-                onPressed: {
-                    delegateRoot.scale = 0.95
-                }
-                onClicked: {
-                    if (typeof win11Notif !== "undefined") {
-                        win11Notif.invokeDefaultAction(win11Notif.index(notifIndex, 0))
-                    }
-                }
-                onReleased: { delegateRoot.scale = 1.0 }
-                onCanceled: { delegateRoot.scale = 1.0 }
-                onEntered: {
-                    if (!root.closing) {
-                        autoTimeoutTimer.stop(); // you hover you stop clok if time != 0
-                    }
-                }
-                onExited: {
-                    // prevent you from stop notif from byeing (only restart the clock if there's still time)
-                    if (!root.closing) {
-                        autoTimeoutTimer.start();
-                    }
+            onExited: {
+                // prevent you from stop notif from byeing (only restart the clock if there's still time)
+                if (!root.closing) {
+                    autoTimeoutTimer.start();
                 }
             }
 
             RowLayout {
-                z: toastArea.z + 1
-                anchors.fill: parent
                 anchors.margins: 12
+                anchors.fill: parent
                 spacing: 12
 
                 Kirigami.Icon {
@@ -152,7 +173,7 @@ PlasmaCore.Dialog {
 
                 PlasmaComponents.ToolButton {
                     icon.name: "window-close"
-                    Layout.alignment: Qt.AlignTop
+                    Layout.fillHeight: true
                     onClicked: {
                         win11Notif.close(win11Notif.index(notifIndex, 0))
                         destroyme()

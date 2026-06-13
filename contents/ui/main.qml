@@ -4,6 +4,7 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
 import org.kde.notificationmanager as NotificationManager
+import org.kde.ksvg as KSvg
 
 PlasmoidItem {
     id: root
@@ -11,17 +12,47 @@ PlasmoidItem {
     // do we really have to have a different name?
     property alias win11Notif: win11Notifications
 
+    KSvg.FrameSvgItem {
+        id : panelSvg
+
+        visible: false
+
+        imagePath: "widgets/panel-background"
+    }
+
     NotificationManager.Notifications {
         id: win11Notifications
 
         showExpired: true
         showDismissed: true
         showJobs: true
+
+        onRowsInserted: (parent, first, last) => {
+            /*
+            var idx = win11Notifications.index(first, 0);
+            var item = win11Notifications.model[first];
+
+            createToast(item.summary, item.body, item.iconName, first);
+
+            var idx = win11Notifications.index(first, 0);
+
+            // 2. Vòng lặp dò tìm nội dung (Role thường nằm từ 256 đến 270)
+            for (var r = 256; r <= 270; r++) {
+                var val = win11Notifications.data(idx, r);
+                if (val !== undefined && val !== "") {
+                    console.log("Tìm thấy dữ liệu tại Role " + r + ": " + val);
+                }
+            }
+            */
+        }
     }
 
-    Component.onCompleted: {
-        for (var method in win11Notifications) {
-            console.log("Hàm khả dụng: " + method);
+    Repeater {
+        model: win11Notifications
+        delegate: Item {
+            Component.onCompleted: {
+                createToast(model.summary, model.body, model.iconName, index);
+            }
         }
     }
 
@@ -81,29 +112,14 @@ PlasmoidItem {
         onTriggered: root.currentDate = new Date()
     }
 
-    Instantiator {
-        model: win11Notifications
-        delegate: Toasty {
-            title: model.summary
-            contents: model.body
-            icon: model.iconName  || "dialog-information"
-            notifIndex: index
-            //win11Notifications: root.win11Notifications
-
-            Component.onCompleted: {
-                show();
-            }
-        }
-    }
-
     // function for spawning notif
-    function createToast(title, contents, icon, index, model) {
+    function createToast(title, contents, icon, index) {
         var component = Qt.createComponent("Toasty.qml");
 
         Qt.callLater(function() {
             if (component.status === Component.Ready) {
                 // take all shit in
-                var newToast = component.createObject(null, { "title": title, "contents": contents, "icon": icon, "notifIndex": index, "win11Notifications": win11Notifications });
+                var newToast = component.createObject(null, { "title": title, "contents": contents, "icon": icon, "notifIndex": index });
 
                 if (newToast !== null) {
                     newToast.show(); // show 'em the notification, boi!
