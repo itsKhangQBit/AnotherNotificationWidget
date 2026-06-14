@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.components as PlasmaComponents
+import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
 import org.kde.notificationmanager as NotificationManager
 import org.kde.ksvg as KSvg
@@ -11,6 +12,7 @@ PlasmoidItem {
 
     // do we really have to have a different name?
     property alias win11Notif: win11Notifications
+    readonly property bool onTaskbar: Plasmoid.location === PlasmaCore.Types.TopEdge || Plasmoid.location === PlasmaCore.Types.BotômEdge || Plasmoid.location === PlasmaCore.Types.LeftEdge || Plasmoid.location === PlasmaCore.Types.RightEdge
 
     KSvg.FrameSvgItem {
         id : panelSvg
@@ -22,36 +24,36 @@ PlasmoidItem {
 
     NotificationManager.Notifications {
         id: win11Notifications
-
         showExpired: true
         showDismissed: true
         showJobs: true
+    }
 
-        onRowsInserted: (parent, first, last) => {
-            /*
-            var idx = win11Notifications.index(first, 0);
-            var item = win11Notifications.model[first];
-
-            createToast(item.summary, item.body, item.iconName, first);
-
-            var idx = win11Notifications.index(first, 0);
-
-            // 2. Vòng lặp dò tìm nội dung (Role thường nằm từ 256 đến 270)
-            for (var r = 256; r <= 270; r++) {
-                var val = win11Notifications.data(idx, r);
-                if (val !== undefined && val !== "") {
-                    console.log("Tìm thấy dữ liệu tại Role " + r + ": " + val);
-                }
-            }
-            */
+    NotifManager {
+        id: notifManager
+        screenGeometry: {
+            var screenAvail = plasmoid.containment.availableScreenRect
+            var screenGeom = plasmoid.containment.screenGeometry
+            var screen = Qt.rect(screenAvail.x + screenGeom.x, screenAvail.y + screenGeom.y, screenAvail.width, screenAvail.height);
+            return screen
         }
+        panelHeight: panelSvg.margins.bottom
     }
 
     Repeater {
         model: win11Notifications
         delegate: Item {
             Component.onCompleted: {
-                createToast(model.summary, model.body, model.iconName, index);
+                if (onTaskbar && !root.expanded) createToast(model.summary, model.body, model.iconName, index, model.urls);
+                /*
+                console.log("--- Obj property ---");
+                for (var prop in model) {
+                    try {
+                        console.log("Property: " + prop + " | Value: " + model[prop]);
+                    } catch (e) {
+                        console.log("Property: " + prop + " | Error: " + e);
+                    }
+                }*/
             }
         }
     }
@@ -113,16 +115,18 @@ PlasmoidItem {
     }
 
     // function for spawning notif
-    function createToast(title, contents, icon, index) {
+    function createToast(title, contents, icon, index, url) {
         var component = Qt.createComponent("Toasty.qml");
 
         Qt.callLater(function() {
             if (component.status === Component.Ready) {
                 // take all shit in
-                var newToast = component.createObject(null, { "title": title, "contents": contents, "icon": icon, "notifIndex": index });
+                var toast = component.createObject(null, { "title": title, "contents": contents, "icon": icon, "notifIndex": index, "imgURL": (url && url.length > 0) ? url[0].toString() : "" });
 
-                if (newToast !== null) {
-                    newToast.show(); // show 'em the notification, boi!
+                if (toast !== null) {
+                    notifManager.regToast(toast); //register so we can calculate y
+                    toast.killme.connect(notifManager.unregToast);
+                    toast.show(); // show 'em the notification, boi!
                 } else {
                     console.log("Can't create object Toasty.qml");
                 }
