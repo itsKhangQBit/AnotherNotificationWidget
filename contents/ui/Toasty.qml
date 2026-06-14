@@ -28,6 +28,13 @@ PlasmaCore.Dialog {
     }
 
     signal killme(var toasty)
+    signal reCalculatePos(var toasty)
+
+    onHeightChanged: {
+        Qt.callLater(() => {
+            reCalculatePos(root)
+        })
+    }
 
     flags: Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus // no focus no steal Dream Isla- keyboard*
     location: PlasmaCore.Types.RightEdge // fixed for now
@@ -138,7 +145,6 @@ PlasmaCore.Dialog {
 
         ColumnLayout {
             id: contents
-            anchors.margins: Kirigami.Units.largeSpacing
             anchors.fill: parent
 
             PlasmaComponents.ProgressBar {
@@ -164,6 +170,7 @@ PlasmaCore.Dialog {
 
             ColumnLayout {
                 id: toastArea
+                Layout.margins: Kirigami.Units.largeSpacing
 
                 scale: 1
 
@@ -206,7 +213,7 @@ PlasmaCore.Dialog {
 
                     Kirigami.Icon {
                         source: root.icon || "notifications-symbolic"
-                        Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.large
                         Layout.preferredHeight: width
                         Layout.alignment: Qt.AlignVCenter
                     }

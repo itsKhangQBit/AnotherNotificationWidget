@@ -260,7 +260,7 @@ id: fullPopup
 
                                     Kirigami.Icon {
                                         source: model.iconName || "notifications-symbolic"
-                                        Layout.preferredWidth: Kirigami.Units.iconSizes.medium
+                                        Layout.preferredWidth: Kirigami.Units.iconSizes.large
                                         Layout.preferredHeight: width
                                         Layout.alignment: Qt.AlignVCenter
                                     }

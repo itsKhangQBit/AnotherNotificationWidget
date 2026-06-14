@@ -31,12 +31,6 @@ PlasmoidItem {
 
     NotifManager {
         id: notifManager
-        screenGeometry: {
-            var screenAvail = plasmoid.containment.availableScreenRect
-            var screenGeom = plasmoid.containment.screenGeometry
-            var screen = Qt.rect(screenAvail.x + screenGeom.x, screenAvail.y + screenGeom.y, screenAvail.width, screenAvail.height);
-            return screen
-        }
         panelHeight: panelSvg.margins.bottom
     }
 
@@ -126,6 +120,7 @@ PlasmoidItem {
                 if (toast !== null) {
                     notifManager.regToast(toast); //register so we can calculate y
                     toast.killme.connect(notifManager.unregToast);
+                    toast.reCalculatePos.connect(notifManager.updateToast);
                     toast.show(); // show 'em the notification, boi!
                 } else {
                     console.log("Can't create object Toasty.qml");

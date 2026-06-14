@@ -12,26 +12,28 @@ QtObject {
 
     function regToast(toast) {
         toastList.push(toast);
-        updateLayout();
+        updateToast();
     }
 
     function unregToast(toast) {
         var index = toastList.indexOf(toast); // get index
         if (index !== -1) {
             toastList.splice(index, 1); // remove index
-            updateLayout();
+            updateToast();
         }
     }
 
-    function updateLayout() {
+    function updateToast() {
         // stack (top2bottom - for top taskbars)
+        var spacing = Kirigami.Units.gridUnit
+        var screenAvail = plasmoid.containment.availableScreenRect
+        var screenGeom = plasmoid.containment.screenGeometry
+        var screen = Qt.rect(screenAvail.x + screenGeom.x, screenAvail.y + screenGeom.y, screenAvail.width, screenAvail.height);
+        var stackY = screen.y + panelHeight
         for (var i = 0; i < toastList.length; i++) {
             var toast = toastList[i];
-            var screenAvail = plasmoid.containment.availableScreenRect
-            var screenGeom = plasmoid.containment.screenGeometry
-            var screen = Qt.rect(screenAvail.x + screenGeom.x, screenAvail.y + screenGeom.y, screenAvail.width, screenAvail.height);
-            var newY = screen.y + panelHeight + (i * (toastHeight + spacing));
-            toast.targetY = newY;
+            toast.targetY = stackY;
+            stackY += toast.height + spacing;
         }
     }
 }
