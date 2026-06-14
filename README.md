@@ -13,7 +13,8 @@ A(n) (less functional but more customization) alternative notification applet to
 - Popup for reading notification history
 - Toast "Popup" for new notifications.
 - More toast info: - Popup for reading text, click to open
-- - [Update 2.0a] Animations!
-- - [Update 3.0b] Stacking & Image previews & Click to open is fixed & Link clicking is done!!
-
+  - [Update 2.0a] Animations!
+  - [Update 3.0b] Stacking & Image previews & Click to open is fixed & Link clicking is done!!
+  - [Update 3.5b] Fixed stacking. Now I can publish the applet! (to KDE store)
+ 
 (sorry if my English is terrible, I tried my best) **🇻🇳 FROM VIỆT NAM WITH LOVE!!! 🪷**
