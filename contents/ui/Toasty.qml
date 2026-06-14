@@ -10,22 +10,22 @@ PlasmaCore.Dialog {
     id: root
 
     property string text: "Default"
-    property int margin: 10
-    property string icon: "dialog-information"
-    property string title: i18n("Unknown")
-    property string contents: i18n("What is this notification?")
     property var notifIndex: 0
     property bool closing: false
-    property int timeoutinterval: 3000
+    property int timeoutinterval: 5000
     property int targetY: 60
     property string imgURL: ""
     property int notifWidth: 390
+    property var model: win11Notif
     property real notifHeight: {
         var shortHeight = 120
         var thumbHeight = 320
+        var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
         var noExpandHeight =  (imgURL !== "" && imgURL !== undefined) ? thumbHeight : shortHeight
         return toolButtons.expandDelegate ? Math.max(contents.implicitHeight + timeoutDisplay.implicitHeight + Kirigami.Units.largeSpacing * 2, noExpandHeight) : noExpandHeight // contents doesn't add timeoutDisplay!??
     }
+
+    // Thử in ra các thuộc tính của jobDetails để xem có gì trong đós
 
     signal killme(var toasty)
     signal reCalculatePos(var toasty)
@@ -48,8 +48,7 @@ PlasmaCore.Dialog {
             root.x = Screen.width - root.width - Kirigami.Units.largeSpacing;
             y = targetY
 
-            // I don't see any animation but let just put it here, maybe a solution soon
-            timeoutTimer.start();
+            if (model.closable) timeoutTimer.start();
         }
     }
 
@@ -79,8 +78,7 @@ PlasmaCore.Dialog {
     function destroyme() {
         if (root.closing) return;
         root.closing = true;
-
-        notifRoot.opacity = 0;
+        win11Notif.close(win11Notif.index(model.index, 0))
         Qt.callLater(function() {
             exiter.start();
         })
@@ -101,7 +99,7 @@ PlasmaCore.Dialog {
         }
         onClicked: {
             if (typeof win11Notif !== "undefined") { // no nullify
-                win11Notif.invokeDefaultAction(win11Notif.index(notifIndex, 0))
+                win11Notif.invokeDefaultAction(win11Notif.index(model.index, 0))
                 destroyme()
             }
         }
@@ -115,7 +113,7 @@ PlasmaCore.Dialog {
         onExited: {
             // prevent you from stop notif from byeing (only restart the clock if there's still time)
             if (!root.closing) {
-                timeoutTimer.start();
+                if (model.closable) timeoutTimer.start();
             }
         }
 
@@ -125,7 +123,7 @@ PlasmaCore.Dialog {
         Timer {
             id: timeoutTimer
             interval: timeoutinterval
-            running: false
+            running: model.closable
             onTriggered: {
                 destroyme()
             }
@@ -184,8 +182,16 @@ PlasmaCore.Dialog {
                         id: pillarEcho // you get what I'm doing
                         width: parent.width
                         height: parent.height
-                        source: (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
-                        visible: (imgURL !== "" && imgURL !== undefined)
+
+
+                        source: {
+                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
+                            return (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
+                        }
+                        visible: {
+                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
+                            return (imgURL !== "" && imgURL !== undefined)
+                        }
                         fillMode: Image.PreserveAspectCrop
                     }
 
@@ -199,8 +205,14 @@ PlasmaCore.Dialog {
                         width: parent.width
                         height: parent.height
                         id: spectacleThumb // mfer really used Spectacle for this
-                        source: (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
-                        visible: (imgURL !== "" && imgURL !== undefined)
+                        source: {
+                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
+                            return (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
+                        }
+                        visible: {
+                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
+                            return (imgURL !== "" && imgURL !== undefined)
+                        }
                         fillMode: Image.PreserveAspectFit // you can see your thumbnails fully
                     }
                 }
@@ -212,25 +224,24 @@ PlasmaCore.Dialog {
                     spacing: 12
 
                     Kirigami.Icon {
-                        source: root.icon || "notifications-symbolic"
+                        source: model.iconName || "notifications-symbolic"
                         Layout.preferredWidth: Kirigami.Units.iconSizes.large
                         Layout.preferredHeight: width
                         Layout.alignment: Qt.AlignVCenter
                     }
 
                     ColumnLayout {
-                        //Layout.fillWidth: true
                         spacing: 2
 
                         PlasmaComponents.Label {
-                            text: root.title
+                            text: model.summary //root.title
                             font.bold: true
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
 
                         PlasmaComponents.Label { // only this could get us to click links
-                            text: root.contents
+                            text: model.body
                             onLinkActivated: (link) => {
                                 Qt.openUrlExternally(link);
                             }
@@ -256,8 +267,7 @@ PlasmaCore.Dialog {
                             onClicked: {
                                 if (typeof win11Notif !== "undefined") { // no nullify
                                     notifRoot.opacity = 0
-                                    notifRoot.height = 0
-                                    delayDelete.start()
+                                    destroyme()
                                 }
                             }
                         }
@@ -268,6 +278,14 @@ PlasmaCore.Dialog {
                             }
                         }
                     }
+                }
+
+                PlasmaComponents.ProgressBar {
+                    Layout.fillWidth: true
+                    from: 0
+                    to: 100
+                    value: (model.percentage !== undefined) ? model.percentage : (model.hints.value || 0)
+                    visible: !model.closable
                 }
             }
         }

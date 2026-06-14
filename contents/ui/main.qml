@@ -38,8 +38,7 @@ PlasmoidItem {
         model: win11Notifications
         delegate: Item {
             Component.onCompleted: {
-                if (onTaskbar && !root.expanded) createToast(model.summary, model.body, model.iconName, index, model.urls);
-                /*
+                if (onTaskbar && !root.expanded) createToast(model);
                 console.log("--- Obj property ---");
                 for (var prop in model) {
                     try {
@@ -47,7 +46,20 @@ PlasmoidItem {
                     } catch (e) {
                         console.log("Property: " + prop + " | Error: " + e);
                     }
-                }*/
+                }
+                if (model.jobDetails) {
+                    console.log("--- DEBUG JOB DETAILS ---");
+                    // Thử kiểm tra các thuộc tính thường có của Job
+                    if (model.jobDetails.hasOwnProperty('remainingTime')) {
+                        console.log("Remaining Time: " + model.jobDetails.remainingTime);
+                    } else {
+                        console.log("Không tìm thấy thuộc tính 'remainingTime' trực tiếp.");
+                        // Thử in ra tất cả keys của jobDetails để xem cấu trúc
+                        for (var prop in model.jobDetails) {
+                            console.log("Prop: " + prop + " | Value: " + model.jobDetails[prop]);
+                        }
+                    }
+                }
             }
         }
     }
@@ -109,13 +121,13 @@ PlasmoidItem {
     }
 
     // function for spawning notif
-    function createToast(title, contents, icon, index, url) {
+    function createToast(model) {
         var component = Qt.createComponent("Toasty.qml");
 
         Qt.callLater(function() {
             if (component.status === Component.Ready) {
                 // take all shit in
-                var toast = component.createObject(null, { "title": title, "contents": contents, "icon": icon, "notifIndex": index, "imgURL": (url && url.length > 0) ? url[0].toString() : "" });
+                var toast = component.createObject(null, { "model": model });
 
                 if (toast !== null) {
                     notifManager.regToast(toast); //register so we can calculate y
