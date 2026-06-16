@@ -27,7 +27,7 @@ id: fullPopup
 
         // is itemIndex a real item?
         if (!itemIndex.valid) {
-            console.log("Thông báo đã bị xóa khỏi hàng đợi!");
+            console.log("Notification is deleted");
             return;
         }
         if (urls && urls.length > 0) {
@@ -199,8 +199,12 @@ id: fullPopup
                                 delegateRoot.scale = 0.95
                             }
                             onClicked: {
-                                console.log(model.hasDefaultAction)
-                                qtOpexExternal(index, model.urls)
+                                qtOpexExternal(model.index, model.urls)
+                                if (model.actionNames && model.actionNames.length > 0) {
+                                    let action = model.actionNames[0];
+                                    let behavior = model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
+                                    win11Notif.invokeAction(win11Notif.index(model.index, 0), action, behavior)
+                                }
                             }
                             onReleased: { delegateRoot.scale = 1.0 }
                             onCanceled: { delegateRoot.scale = 1.0 }

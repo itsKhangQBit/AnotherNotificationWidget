@@ -5,6 +5,7 @@ import QtQuick.Window
 import Qt5Compat.GraphicalEffects 1.15 // dude Qt didn't port it to Qt 6??
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
+import org.kde.notificationmanager as NotificationManager
 
 PlasmaCore.Dialog {
     id: root
@@ -12,20 +13,30 @@ PlasmaCore.Dialog {
     property string text: "Default"
     property var notifIndex: 0
     property bool closing: false
-    property int timeoutinterval: 5000
+    property int timeoutinterval: 3000
     property int targetY: 60
-    property string imgURL: ""
     property int notifWidth: 390
     property var model: win11Notif
+    property string imgURL: (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
     property real notifHeight: {
         var shortHeight = 120
-        var thumbHeight = 320
-        var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
+        var thumbHeight = 360
         var noExpandHeight =  (imgURL !== "" && imgURL !== undefined) ? thumbHeight : shortHeight
         return toolButtons.expandDelegate ? Math.max(contents.implicitHeight + timeoutDisplay.implicitHeight + Kirigami.Units.largeSpacing * 2, noExpandHeight) : noExpandHeight // contents doesn't add timeoutDisplay!??
     }
 
-    // Thử in ra các thuộc tính của jobDetails để xem có gì trong đós
+    function qtOpexExternal(id, urls) {
+        var itemIndex = win11Notif.index(id, 0);
+
+        // is itemIndex a real item?
+        if (!itemIndex.valid) {
+            console.log("Notification is deleted");
+            return;
+        }
+        if (urls && urls.length > 0) {
+            Qt.openUrlExternally(urls[0]);
+        }
+    }
 
     signal killme(var toasty)
     signal reCalculatePos(var toasty)
@@ -78,7 +89,7 @@ PlasmaCore.Dialog {
     function destroyme() {
         if (root.closing) return;
         root.closing = true;
-        win11Notif.close(win11Notif.index(model.index, 0))
+        notifRoot.opacity = 0.0;
         Qt.callLater(function() {
             exiter.start();
         })
@@ -98,10 +109,13 @@ PlasmaCore.Dialog {
             toastArea.scale = 0.95
         }
         onClicked: {
-            if (typeof win11Notif !== "undefined") { // no nullify
-                win11Notif.invokeDefaultAction(win11Notif.index(model.index, 0))
-                destroyme()
+            qtOpexExternal(model.index, model.urls)
+            if (model.actionNames && model.actionNames.length > 0) {
+                let action = model.actionNames[0];
+                let behavior = model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
+                win11Notif.invokeAction(win11Notif.index(model.index, 0), action, behavior)
             }
+            destroyme()
         }
         onReleased: { toastArea.scale = 1.0 }
         onCanceled: { toastArea.scale = 1.0 }
@@ -126,6 +140,15 @@ PlasmaCore.Dialog {
             running: model.closable
             onTriggered: {
                 destroyme()
+            }
+            onRunningChanged: {
+                if (running) {
+                    timeoutAnim.start()
+                    resetAnim.stop()
+                } else if(!running) {
+                    timeoutAnim.stop()
+                    resetAnim.start()
+                }
             }
         }
 
@@ -152,17 +175,39 @@ PlasmaCore.Dialog {
                 from: 0
                 to: timeoutinterval
                 value: timeoutinterval
-                visible: timeoutTimer.running
 
                 NumberAnimation { // smooth countdown
-                    id: timeoutAnimation
+                    id: timeoutAnim
                     target: timeoutDisplay
                     property: "value"
                     from: timeoutinterval
                     to: 0
                     duration: timeoutinterval
                     easing.type: Easing.Linear
-                    running: timeoutTimer.running
+                    running: false
+                }
+
+                NumberAnimation { // smooth countUP
+                    id: resetAnim
+                    target: timeoutDisplay
+                    property: "value"
+                    to: timeoutinterval
+                    duration: {
+                        var dist = to - timeoutDisplay.value
+                        var fullDist = timeoutinterval
+                        var stdDuration = 400
+
+                        if (fullDist <= 0) return stdDuration;
+                        if (dist <= 0) return 0;
+
+                        var distRatio = dist / fullDist
+                        var x = Math.pow(distRatio, 0.25);
+                        x = Math.max(0, Math.min(1, x));
+
+                        return x * stdDuration
+                    }
+                    easing.type: Easing.OutQuart
+                    running: false
                 }
             }
 
@@ -176,22 +221,14 @@ PlasmaCore.Dialog {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: spectacleThumb.visible ? 200 : 0
+                    Layout.preferredHeight: spectacleThumb.visible ? (root.notifWidth * 9 / 16) : 0
                     radius: 4
                     Image {
                         id: pillarEcho // you get what I'm doing
                         width: parent.width
                         height: parent.height
-
-
-                        source: {
-                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                            return (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
-                        }
-                        visible: {
-                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                            return (imgURL !== "" && imgURL !== undefined)
-                        }
+                        source: (imgURL !== undefined) ? imgURL : ""
+                        visible: imgURL !== ""
                         fillMode: Image.PreserveAspectCrop
                     }
 
@@ -199,20 +236,15 @@ PlasmaCore.Dialog {
                         source: pillarEcho
                         anchors.fill: pillarEcho
                         radius: 32
+                        visible: pillarEcho.visible
                     }
 
                     Image {
                         width: parent.width
                         height: parent.height
                         id: spectacleThumb // mfer really used Spectacle for this
-                        source: {
-                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                            return (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
-                        }
-                        visible: {
-                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                            return (imgURL !== "" && imgURL !== undefined)
-                        }
+                        source: (imgURL !== undefined) ? imgURL : ""
+                        visible: imgURL !== ""
                         fillMode: Image.PreserveAspectFit // you can see your thumbnails fully
                     }
                 }
@@ -284,8 +316,10 @@ PlasmaCore.Dialog {
                     Layout.fillWidth: true
                     from: 0
                     to: 100
-                    value: (model.percentage !== undefined) ? model.percentage : (model.hints.value || 0)
+                    value: (model.percentage !== undefined) ? model.percentage : 0
+                    indeterminate: (model.jobDetails !== undefined) ? model.jobDetails.speed === 0 : true
                     visible: !model.closable
+                    Behavior on value { NumberAnimation { duration: 200; easing.type: Easing.OutQuart } }
                 }
             }
         }

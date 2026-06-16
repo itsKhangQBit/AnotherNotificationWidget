@@ -48,7 +48,7 @@ PlasmoidItem {
                     }
                 }
                 if (model.jobDetails) {
-                    console.log("--- DEBUG JOB DETAILS ---");
+                    console.log("--- Jobs ---");
                     // Thử kiểm tra các thuộc tính thường có của Job
                     if (model.jobDetails.hasOwnProperty('remainingTime')) {
                         console.log("Remaining Time: " + model.jobDetails.remainingTime);
@@ -59,6 +59,125 @@ PlasmoidItem {
                             console.log("Prop: " + prop + " | Value: " + model.jobDetails[prop]);
                         }
                     }
+                }
+                if (model.actionLabels !== undefined) {
+                    console.log("--- Actions ---");
+                    console.log("actionLabels length/value:", model.actionLabels);
+                    try {
+                        console.log("actionLabels JSON stringify:", JSON.stringify(model.actionLabels));
+                    } catch(e) {}
+                    try {
+                        for (var i = 0; i < 10; i++) { // Thử quét tối đa 10 phần tử
+                            if (model.actionLabels[i] !== undefined) {
+                                console.log("  => Label[" + i + "]: " + model.actionLabels[i]);
+                            } else {
+                                break;
+                            }
+                        }
+                    } catch(e) {
+                        console.log("Lỗi khi loop actionLabels: " + e);
+                    }
+                    if (model.actionNames !== undefined) {
+                        console.log("actionNames length/value:", model.actionNames);
+                        try {
+                            for (var j = 0; j < 10; j++) {
+                                if (model.actionNames[j] !== undefined) {
+                                    console.log("  => Name/ID[" + j + "]: " + model.actionNames[j]);
+                                } else {
+                                    break;
+                                }
+                            }
+                        } catch(e) {
+                            console.log("Lỗi khi loop actionNames: " + e);
+                        }
+                    }
+                }
+
+                console.log("=========================================");
+                console.log("  TRUY LÙNG DỮ LIỆU GỐC (DEEP INSPECTION) ");
+                console.log("=========================================");
+
+                var hintsObj = model.hints;
+
+                if (hintsObj) {
+                    // Cách 1: Thử ép sang chuỗi JSON để xem toàn bộ cấu trúc cây dữ liệu
+                    try {
+                        var jsonHints = JSON.stringify(hintsObj);
+                        console.log("👉 TOÀN BỘ RUỘT CỦA HINTS (JSON):");
+                        console.log(jsonHints);
+                    } catch(e) {
+                        console.log("Không thể stringify hints trực tiếp: " + e);
+                    }
+
+                    // Cách 2: Duyệt thủ công từng Key-Value nằm trong hints
+                    console.log("\n👉 DUYỆT CHI TIẾT TỪNG KEY TRONG HINTS:");
+                    for (var key in hintsObj) {
+                        try {
+                            var val = hintsObj[key];
+                            console.log("  🔹 Key: [" + key + "] => Value: " + val + " (Kiểu: " + typeof(val) + ")");
+
+                            // Nếu Value lại là một Object/Array ẩn khác, ta bóc tiếp một lớp nữa
+                            if (typeof(val) === "object") {
+                                console.log("     ↳ Chi tiết bên trong: " + JSON.stringify(val));
+                            }
+                        } catch(err) {
+                            console.log("  🔺 Lỗi đọc key [" + key + "]: " + err);
+                        }
+                    }
+                } else {
+                    console.log("❌ hints bị undefined hoặc null!");
+                }
+
+                // Kiểm tra thêm mảng urls kèm theo thông báo (Role UrlsRole)
+                if (model.urls) {
+                    console.log("\n👉 MẢNG URLS ĐI KÈM THÔNG BÁO:");
+                    console.log(JSON.stringify(model.urls));
+                }
+                console.log("=========================================");
+
+                console.log("=== BẮT ĐẦU TRUY LÙNG HÀM TỪ CÁC ĐỐI TƯỢNG CHA ===");
+
+                // Hàm phụ để dump sạch sành sanh các method có tên rõ ràng
+                function scanRealMethods(obj, objName) {
+                    if (!obj) {
+                        console.log("[" + objName + "] không tồn tại (undefined/null).");
+                        return;
+                    }
+                    console.log("\n🔍 Đang quét hàm của: " + objName);
+                    try {
+                        var keys = Object.getOwnPropertyNames(obj);
+                        var found = false;
+                        keys.forEach(function(k) {
+                            // Lọc bỏ các hàm đổi thuộc tính (*Changed) và các hàm dạng __0, __1 cho đỡ rác log
+                            if (typeof obj[k] === "function" && !k.endsWith("Changed") && !k.startsWith("__")) {
+                                console.log("  ⭐ Tìm thấy hàm có thể gọi: " + k + "()");
+                                found = true;
+                            }
+                        });
+                        if (!found) console.log("  => Không có hàm thực thi trực tiếp nào (ngoại trừ hàm ẩn hoặc *Changed).");
+                    } catch(e) {
+                        console.log("  ❌ Lỗi khi quét " + objName + ": " + e);
+                    }
+                }
+
+                // 1. Kiểm tra đối tượng bọc ngoài cùng của file QML (root)
+                if (typeof root !== "undefined") {
+                    scanRealMethods(root, "root");
+                }
+
+                // 2. Nếu Toast nằm trong ListView, đối tượng 'model' tổng quản lý danh sách sẽ nằm ở đây
+                // Thường ListView sẽ có một property tên là 'model' chứa các hàm điều khiển
+                // Lưu ý: Đang check 'model' của View chứ không phải biến 'model' (DMAbstractItemModelData) của item nhé!
+                if (typeof parent !== "undefined" && parent && parent.model) {
+                    scanRealMethods(parent.model, "parent.model (Model tổng)");
+                }
+
+                // 3. Quét thử môi trường xung quanh (KDE Plasma Notification thường hay định nghĩa các biến này)
+                if (typeof notificationModel !== "undefined") {
+                    scanRealMethods(notificationModel, "notificationModel toàn cục");
+                }
+                if (typeof notificationsModel !== "undefined") {
+                    scanRealMethods(notificationsModel, "notificationsModel toàn cục");
                 }
             }
         }
