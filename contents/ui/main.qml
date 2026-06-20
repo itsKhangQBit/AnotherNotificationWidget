@@ -80,6 +80,9 @@ PlasmoidItem {
                     if (model.actionNames !== undefined) {
                         console.log("actionNames length/value:", model.actionNames);
                         try {
+                            console.log("actionNames JSON stringify:", JSON.stringify(model.actionNames));
+                        } catch(e) {}
+                        try {
                             for (var j = 0; j < 10; j++) {
                                 if (model.actionNames[j] !== undefined) {
                                     console.log("  => Name/ID[" + j + "]: " + model.actionNames[j]);

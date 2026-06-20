@@ -10,7 +10,6 @@ import org.kde.notificationmanager as NotificationManager
 PlasmaCore.Dialog {
     id: root
 
-    property string text: "Default"
     property var notifIndex: 0
     property bool closing: false
     property int timeoutinterval: 3000
@@ -19,10 +18,10 @@ PlasmaCore.Dialog {
     property var model: win11Notif
     property string imgURL: (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
     property real notifHeight: {
-        var shortHeight = 120
-        var thumbHeight = 360
+        var shortHeight = 145
+        var thumbHeight = 375
         var noExpandHeight =  (imgURL !== "" && imgURL !== undefined) ? thumbHeight : shortHeight
-        return toolButtons.expandDelegate ? Math.max(contents.implicitHeight + timeoutDisplay.implicitHeight + Kirigami.Units.largeSpacing * 2, noExpandHeight) : noExpandHeight // contents doesn't add timeoutDisplay!??
+        return Math.max(contents.implicitHeight + timeoutDisplay.implicitHeight + Kirigami.Units.largeSpacing * 2, noExpandHeight)
     }
 
     function qtOpexExternal(id, urls) {
@@ -30,7 +29,7 @@ PlasmaCore.Dialog {
 
         // is itemIndex a real item?
         if (!itemIndex.valid) {
-            console.log("Notification is deleted");
+            console.log("Oh shoot, notification is deleted");
             return;
         }
         if (urls && urls.length > 0) {
@@ -266,13 +265,14 @@ PlasmaCore.Dialog {
                         spacing: 2
 
                         PlasmaComponents.Label {
-                            text: model.summary //root.title
+                            text: model.summary
                             font.bold: true
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
 
-                        PlasmaComponents.Label { // only this could get us to click links
+                        PlasmaComponents.Label {
+                            id: notifContents //literally text
                             text: model.body
                             onLinkActivated: (link) => {
                                 Qt.openUrlExternally(link);
@@ -284,6 +284,8 @@ PlasmaCore.Dialog {
                             opacity: 0.8
                             wrapMode: Text.WordWrap
                             elide: Text.ElideRight
+                            // this guy doesn't know about object shows because he's in Vietnam and speaks Vietnamese!
+                            // OBJECTION!
                             maximumLineCount: toolButtons.expandDelegate ? 2763 : 3
                             Layout.fillWidth: true
                         }
@@ -305,8 +307,12 @@ PlasmaCore.Dialog {
                         }
                         PlasmaComponents.ToolButton {
                             icon.name: toolButtons.expandDelegate ? "arrow-up-symbolic" : "arrow-down-symbolic"
+                            visible: notifContents.truncated ? true : toolButtons.expandDelegate // this is more readable
                             onClicked: {
                                 toolButtons.expandDelegate = !toolButtons.expandDelegate
+                            }
+                            PlasmaComponents.ToolTip {
+                                text: i18n("Expand notification")
                             }
                         }
                     }
@@ -317,9 +323,28 @@ PlasmaCore.Dialog {
                     from: 0
                     to: 100
                     value: (model.percentage !== undefined) ? model.percentage : 0
-                    indeterminate: (model.jobDetails !== undefined) ? model.jobDetails.speed === 0 : true
+                    indeterminate: (model.jobDetails !== undefined) ? (parseInt(model.jobDetails.speed, 10) === 0) : true
                     visible: !model.closable
                     Behavior on value { NumberAnimation { duration: 200; easing.type: Easing.OutQuart } }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: model.actionNames.length > 0
+                    Repeater {
+                        model: root.model.actionNames
+                        delegate: PlasmaComponents.Button {
+                            Layout.fillWidth: true
+                            text: root.model.actionLabels[index]
+                            onClicked: {
+                                //qtOpexExternal(model.index, model.urls)
+                                let action = root.model.actionNames[index];
+                                let behavior = root.model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
+                                win11Notif.invokeAction(win11Notif.index(root.model.index, 0), action, behavior)
+                                destroyme()
+                            }
+                        }
+                    }
                 }
             }
         }
