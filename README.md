@@ -2,7 +2,7 @@
 Why isn't there an alternative notifications applet?
 
 > [!WARNING]
-> **THIS APPLET IS ONLY FOR PLASMA 6**. NO PLASMA 5 VERSION YET, sorry 😅
+> **THIS APPLET IS ONLY FOR PLASMA 6**. NO PLASMA 5 VERSION YET, sorry :)
 
 > [!IMPORTANT]
 > This applet is still in Beta stage. Just expect bugs, I can't fix everything ok?
