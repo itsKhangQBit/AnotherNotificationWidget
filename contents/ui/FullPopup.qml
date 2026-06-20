@@ -27,7 +27,7 @@ id: fullPopup
 
         // is itemIndex a real item?
         if (!itemIndex.valid) {
-            console.log("Notification is deleted");
+            console.log("Notification is deleted :(");
             return;
         }
         if (urls && urls.length > 0) {
@@ -156,12 +156,14 @@ id: fullPopup
                         width: ListView.view.width
                         opacity: 0
                         scale: 1
+
+                        property var imgURL: (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
+
                         height: {
-                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                            var shortHeight = 120
-                            var thumbHeight = 320
-                            var rielHeight =  (imgURL !== "" && imgURL !== undefined) ? thumbHeight : shortHeight
-                            return toolButtons.expandDelegate ? Math.max(contents.implicitHeight + Kirigami.Units.largeSpacing * 2 , rielHeight) : rielHeight // math.max so it only expands // we have to add the margins in, for some reason ColumnLayout doesn't add the margins
+                            var shortHeight = 145
+                            var thumbHeight = 375
+                            var noExpandHeight =  (imgURL !== "" && imgURL !== undefined) ? thumbHeight : shortHeight
+                            return Math.max(contents.implicitHeight + Kirigami.Units.largeSpacing * 2, noExpandHeight)
                         }
 
                         color: Kirigami.Theme.backgroundColor
@@ -199,12 +201,8 @@ id: fullPopup
                                 delegateRoot.scale = 0.95
                             }
                             onClicked: {
-                                qtOpexExternal(model.index, model.urls)
-                                if (model.actionNames && model.actionNames.length > 0) {
-                                    let action = model.actionNames[0];
-                                    let behavior = model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
-                                    win11Notif.invokeAction(win11Notif.index(model.index, 0), action, behavior)
-                                }
+                                if (model.hasDefaultAction) win11Notif.invokeDefaultAction(win11Notif.index(model.index, 0), behavior)
+                                else qtOpexExternal(model.index, model.urls)
                             }
                             onReleased: { delegateRoot.scale = 1.0 }
                             onCanceled: { delegateRoot.scale = 1.0 }
@@ -224,14 +222,8 @@ id: fullPopup
                                         height: parent.height
 
 
-                                        source: {
-                                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                                            return (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
-                                        }
-                                        visible: {
-                                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                                            return (imgURL !== "" && imgURL !== undefined)
-                                        }
+                                        source: (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
+                                        visible: (imgURL !== "" && imgURL !== undefined)
                                         fillMode: Image.PreserveAspectCrop
                                     }
 
@@ -245,14 +237,8 @@ id: fullPopup
                                         width: parent.width
                                         height: parent.height
                                         id: spectacleThumb // mfer really used Spectacle for this
-                                        source: {
-                                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                                            return (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
-                                        }
-                                        visible: {
-                                            var imgURL = (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
-                                            return (imgURL !== "" && imgURL !== undefined)
-                                        }
+                                        source: (imgURL !== "" && imgURL !== undefined) ? imgURL : "file:///home/itskhang/Pictures/neon.logo.png"
+                                        visible: (imgURL !== "" && imgURL !== undefined)
                                         fillMode: Image.PreserveAspectFit // you can see your thumbnails fully
                                     }
                                 }
@@ -280,6 +266,7 @@ id: fullPopup
                                             Layout.fillWidth: true
                                         }
                                         PlasmaComponents.Label {
+                                            id: notifContents
                                             text: model.body
                                             onLinkActivated: (link) => {
                                                 Qt.openUrlExternally(link);
@@ -312,9 +299,38 @@ id: fullPopup
                                         }
                                         PlasmaComponents.ToolButton {
                                             icon.name: toolButtons.expandDelegate ? "arrow-up-symbolic" : "arrow-down-symbolic"
-                                            //visible:
+                                            visible: notifContents.truncated ? true : toolButtons.expandDelegate // this is more readable
+                                            onClicked: toolButtons.expandDelegate = !toolButtons.expandDelegate
+                                        }
+                                    }
+                                }
+
+                                PlasmaComponents.ProgressBar {
+                                    Layout.fillWidth: true
+                                    from: 0
+                                    to: 100
+                                    value: (model.percentage !== undefined) ? model.percentage : 0
+                                    indeterminate: (model.jobDetails !== undefined) ? (parseInt(model.jobDetails.speed, 10) === 0) : true
+                                    visible: !model.closable
+                                    Behavior on value { NumberAnimation { duration: 200; easing.type: Easing.OutQuart } }
+                                }
+
+                                RowLayout {
+                                    id: buttonRow // come on ids so no not defined errors?
+                                    Layout.fillWidth: true
+                                    visible: model.actionNames.length > 0
+
+                                    property var delegateModels: model // had to pass the models in
+
+                                    Repeater {
+                                        model: buttonRow.delegateModels.actionNames
+                                        delegate: PlasmaComponents.Button {
+                                            Layout.fillWidth: true
+                                            text: buttonRow.delegateModels.actionLabels[index]
                                             onClicked: {
-                                                toolButtons.expandDelegate = !toolButtons.expandDelegate
+                                                let action = buttonRow.delegateModels.actionNames[index];
+                                                let behavior = buttonRow.delegateModels.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
+                                                win11Notif.invokeAction(win11Notif.index(buttonRow.delegateModels.index, 0), action, behavior)
                                             }
                                         }
                                     }

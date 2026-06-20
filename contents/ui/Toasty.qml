@@ -108,12 +108,8 @@ PlasmaCore.Dialog {
             toastArea.scale = 0.95
         }
         onClicked: {
-            qtOpexExternal(model.index, model.urls)
-            if (model.actionNames && model.actionNames.length > 0) {
-                let action = model.actionNames[0];
-                let behavior = model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
-                win11Notif.invokeAction(win11Notif.index(model.index, 0), action, behavior)
-            }
+            if (model.hasDefaultAction) win11Notif.invokeDefaultAction(win11Notif.index(model.index, 0), behavior)
+            else qtOpexExternal(model.index, model.urls)
             destroyme()
         }
         onReleased: { toastArea.scale = 1.0 }
@@ -337,7 +333,6 @@ PlasmaCore.Dialog {
                             Layout.fillWidth: true
                             text: root.model.actionLabels[index]
                             onClicked: {
-                                //qtOpexExternal(model.index, model.urls)
                                 let action = root.model.actionNames[index];
                                 let behavior = root.model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
                                 win11Notif.invokeAction(win11Notif.index(root.model.index, 0), action, behavior)
