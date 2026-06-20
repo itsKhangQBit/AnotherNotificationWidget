@@ -25,5 +25,6 @@ A (worse features better UI) notifications applet for Plasma (6). Made this out 
 - 3.0b: added stacking notifications
 - 3.5b: added progress bars, expand/collapse, fixed stacking notifications for feature expand/collapse notifications
 - 4.0b: improved animations and click toast to open
+- 4.5b: improved expand button and now introducing action buttons!
 
 (sorry if my English is unreadable, I'm still trying my best) **🇻🇳 FROM VIỆT NAM WITH LOVE!!! 🪷**
