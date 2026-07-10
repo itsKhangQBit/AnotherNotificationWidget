@@ -6,6 +6,7 @@ import Qt5Compat.GraphicalEffects 1.15 // dude Qt didn't port it to Qt 6??
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
 import org.kde.notificationmanager as NotificationManager
+import org.kde.plasma.plasma5support as Plasma5Support
 
 PlasmaCore.Dialog {
     id: root
@@ -16,13 +17,14 @@ PlasmaCore.Dialog {
     property int targetY: 60
     property int notifWidth: 390
     property var model: win11Notif
-    property string imgURL: (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
+    property string imgURL: (model.urls && model.urls.length > 0) ? model.urls[0].toString() : "/home/itskhang/Pictures/pexels-hson-18701754_44802520.jpg"
     property real notifHeight: {
         var shortHeight = 145
         var thumbHeight = 375
         var noExpandHeight =  (imgURL !== "" && imgURL !== undefined) ? thumbHeight : shortHeight
         return Math.max(contents.implicitHeight + timeoutDisplay.implicitHeight + Kirigami.Units.largeSpacing * 2, noExpandHeight)
     }
+    property var actions: []
 
     function qtOpexExternal(id, urls) {
         var itemIndex = win11Notif.index(id, 0);
@@ -70,6 +72,7 @@ PlasmaCore.Dialog {
     Component.onCompleted: Qt.callLater(function() {
         animY.enabled = true
         notifRoot.opacity = 1.0;
+        openWithProcessor.runScanCommand(root.imgURL)
     })
 
     Behavior on height {
@@ -128,6 +131,63 @@ PlasmaCore.Dialog {
 
         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutQuad } }
         Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+
+        Plasma5Support.DataSource {
+            id: openWithProcessor
+            engine: "executable"
+            connectedSources: []
+
+            // Hàm kích hoạt chạy cmd quét danh sách app
+            function runScanCommand(filePath) {
+                // Gom nguyên con script Bash tối ưu của bồ vào một dòng (dùng dấu chấm phẩy)
+                var cmd = "FILE_PATH=\"" + filePath + "\"; MIME=\$(xdg-mime query filetype \"\$FILE_PATH\"); APPS_JSON=\"\"; for d in \$(echo \"\${XDG_DATA_HOME:-\$HOME/.local/share}:\${XDG_DATA_DIRS:-/usr/local/share:/usr/share}\" | tr ':' '\\n'); do if [ -f \"\$d/applications/mimeinfo.cache\" ]; then ids=\$(sed -n \"s|^\$MIME=||p\" \"\$d/applications/mimeinfo.cache\" | tr ';' ' '); for id in \$ids; do if [ -f \"\$d/applications/\$id\" ]; then OBJ=\$(awk -F '=' -v desktop_id=\"\$id\" ' /^\\[Desktop Entry\\]/ { inside=1; next } /^\\[/ { inside=0 } inside && /^Name=/ { name=\$2 } inside && /^Icon=/ { icon=\$2 } END { if (name!=\"\") print \"{\\\"name\\\":\\\"\"name\"\\\", \\\"icon\\\":\\\"\"icon\"\\\", \\\"desktop\\\":\\\"\"desktop_id\"\\\"}\" } ' \"\$d/applications/\$id\"); if [ -n \"\$OBJ\" ]; then if [ -z \"\$APPS_JSON\" ]; then APPS_JSON=\"\$OBJ\"; else APPS_JSON=\"\$APPS_JSON, \$OBJ\"; fi; fi; fi; done; fi; done; echo \"[\$APPS_JSON]\"";
+
+                // Gửi lệnh vào hàng chờ của Executable Engine
+                openWithProcessor.connectSource(cmd);
+            }
+
+            // Bắt sự kiện khi lệnh Bash chạy xong và trả về kết quả
+            onNewData: (sourceName, data) => {
+                // data.stdout chính là kết quả in ra Terminal từ câu lệnh của bồ
+                var output = data.stdout ? data.stdout.trim() : "";
+                var scannedApps = [];
+
+                try {
+                    if (output) {
+                        scannedApps = JSON.parse(output);
+                    }
+                } catch (e) {
+                    console.log("Lỗi xử lý JSON mã nguồn:", e);
+                    scannedApps = [];
+                }
+
+                // --- 🎯 CỤM MERGE ĐÁP ỨNG ĐÚNG LOGIC CỦA BỒ ---
+                var staticActions = root.model.actionNames.map(function(actionName) {
+                    return {
+                        "name": actionName,
+                        "icon": "",
+                        "type": "static",
+                        "action": actionName
+                    };
+                });
+
+                var dynamicApps = scannedApps.map(function(app) {
+                    return {
+                        "name": "Mở bằng " + app.name,
+                        "icon": app.icon,
+                        "type": "app",
+                        "desktop": app.desktop
+                    };
+                });
+
+                // Trộn mảng xong nạp thẳng vào Model
+                root.actions = staticActions.concat(dynamicApps);
+                console.log(JSON.stringify(root.actions, null, 4));
+
+                // 🚨 QUAN TRỌNG: Ngắt kết nối để giải phóng engine sau khi chạy xong
+                openWithProcessor.disconnectSource(sourceName);
+            }
+        }
 
         Timer {
             id: timeoutTimer
@@ -295,7 +355,7 @@ PlasmaCore.Dialog {
                             icon.name: "window-close"
                             Layout.fillHeight: true
                             onClicked: {
-                                if (typeof win11Notif !== "undefined") { // no nullify
+                                if (typeof win11Notif !== "undefined") { // no nonexisty- sorry, technical term: nullify
                                     notifRoot.opacity = 0
                                     destroyme()
                                 }
@@ -337,6 +397,67 @@ PlasmaCore.Dialog {
                                 let behavior = root.model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
                                 win11Notif.invokeAction(win11Notif.index(root.model.index, 0), action, behavior)
                                 destroyme()
+                            }
+                        }
+                    }
+                    PlasmaComponents.Button {
+                        id: menuButton
+                        icon.name: "open-menu"
+
+                        onClicked: {
+                            // Mở ra và tự neo vào chính cái Button này
+                            contexts.popup(menuButton)
+                        }
+                    }
+                    PlasmaComponents.Menu {
+                        id: contexts
+
+                        Repeater {
+                            model: root.totalMenuModel // Mảng đã merge [opena, gimp, gwenview...]
+
+                            PlasmaComponents.MenuItem {
+                                id: menuItem
+
+                                // Hàm xử lý icon thông minh (Cân cả tên icon, png lẫn đường dẫn path)
+                                function getIconSource(iconStr) {
+                                    if (!iconStr) return "executable"
+                                        if (iconStr.indexOf("/") === 0) return "file://" + iconStr
+                                            if (iconStr.indexOf(".png") !== -1 || iconStr.indexOf(".svg") !== -1) return iconStr.split('.')[0]
+                                                return iconStr
+                                }
+
+                                // Giao diện Luxury: Icon bên trái, Chữ bên phải
+                                contentItem: RowLayout {
+                                    spacing: 10
+
+                                    Kirigami.Icon {
+                                        source: menuItem.getIconSource(modelData.icon)
+                                        implicitWidth: 16 // Size icon chuẩn của Context Menu Plasma 6
+                                        implicitHeight: 16
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+
+                                    PlasmaComponents.Label {
+                                        text: modelData.name
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+                                }
+
+                                // Xử lý sự kiện click cho từng nút tạm thời
+                                onClicked: {
+                                    contextMenu.close() // Bấm xong là đóng menu tạm thời ngay
+
+                                    if (modelData.type === "static") {
+                                        let action = modelData.action
+                                        let behavior = root.model.resident ? NotificationManager.Notifications.None : NotificationManager.Notifications.Close;
+                                        win11Notif.invokeAction(win11Notif.index(root.model.index, 0), action, behavior)
+                                        destroyme()
+                                    } else if (modelData.type === "app") {
+                                        // Chạy app động bằng lệnh qua Plasma5Support
+                                        openWithProcessor.connectSource("gtk-launch " + modelData.desktop + " " + thumbnailer.url)
+                                    }
+                                }
                             }
                         }
                     }

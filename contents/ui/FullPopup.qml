@@ -7,14 +7,18 @@ import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
 import Qt5Compat.GraphicalEffects 1.15
 import org.kde.notificationmanager as NotificationManager
+import org.kde.plasma.plasma5support as Plasma5Support
+import org.kde.plasma.networkmanagement as NetworkManagement
+
+// This source code was made with Rubber Duck Debugging™ (joke, the Duck is an AI and I roasted the duck for dinner..!?)
 
 Item {
 id: fullPopup
-
-    // fill many stuff as you can
-
+    //=============================================\\
+    // PART 1: THE TOASTS (Notification center)    || bro bubble messages, really?
+    //=============================================//
     implicitWidth: Math.max(mainLayout.implicitWidth, 300)
-    implicitHeight: Math.max(mainLayout.implicitWidth, 200)
+    implicitHeight: Math.max(mainLayout.implicitHeight, 200)
 
     Layout.preferredWidth: fullPopup.implicitWidth + Kirigami.Units.smallSpacing
     Layout.preferredHeight: fullPopup.implicitHeight + Kirigami.Units.smallSpacing
@@ -38,6 +42,7 @@ id: fullPopup
     ColumnLayout {
         id: mainLayout
         anchors.fill: parent
+        clip: true
         anchors.margins: Kirigami.Units.largeSpacing
         spacing: Kirigami.Units.largeSpacing
 
@@ -73,7 +78,7 @@ id: fullPopup
         Item {
             id: notifDisplay
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            height: fullPopup.implicitHeight / 5 * 3
             clip: true
 
             property bool userReading: true
@@ -121,7 +126,7 @@ id: fullPopup
                         NumberAnimation { properties: "opacity"; duration: 200; to: 0; easing.type: Easing.OutQuad }
                     }
 
-                    // smart scrolling so you don't go snapped to the top by Two- no, by the goddamn list view (BFDI fan caught in 4k)
+                    // smart scrolling so you don't get kicked to the top by One- no, by the goddamn list view (BFDI fan caught in 4k)
                     Connections {
                         target: win11Notifications
 
@@ -197,7 +202,7 @@ id: fullPopup
 
                             Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
 
-                            onPressed: {//visible: delegateRoot.height <= contents.implicitHeigh
+                            onPressed: {
                                 delegateRoot.scale = 0.95
                             }
                             onClicked: {
@@ -350,6 +355,338 @@ id: fullPopup
                     NumberAnimation {
                         duration: 100
                         easing.type: Easing.InOutCubic
+                    }
+                }
+            }
+        }
+
+        //====================\\
+        // No more part 1!    ||
+        //====================//
+
+        Kirigami.Separator { // for your visiblity
+            Layout.fillWidth: true
+            opacity: 0.3
+        }
+
+        //===========================================\\
+        // PART 2: QUICK CONTROLS (Action center)    ||
+        //===========================================//
+
+        property string quickpage: "main"
+
+        ColumnLayout {
+            id: quickControls
+            visible: mainLayout.quickpage === "main"
+            Layout.fillHeight: true
+            Layout.fillWidth: true
+            property int brightness: 5000 //default
+            property int volume: 50
+            property bool mute: false
+            property var wifilist: []
+            property var wifistat: []
+            property bool wifi: true
+
+            Component.onCompleted: {
+                controller.getbright()
+                controller.getvol()
+                controller.getwifistat()
+                controller.getwifionoff()
+            }
+
+            Plasma5Support.DataSource {
+                id: controller
+                engine: "executable"
+                // this is a hell of a function, base is literally nmcli stuff
+
+                function setbright(int) { // 1st time using vars like this to make code more readable
+                    connectSource("qdbus org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement/Actions/BrightnessControl org.kde.Solid.PowerManagement.Actions.BrightnessControl.setBrightness " + int)
+                }
+                function setvol(int) {
+                    connectSource("pactl set-sink-volume @DEFAULT_SINK@ " + int + "%")
+                }
+                function setmute(bool) {
+                    connectSource("pactl set-sink-mute @DEFAULT_SINK@ " + bool)
+                }
+                function setwifionoff(bool) {
+                    let status = bool ? "on" : "off"
+                    connectSource("nmcli radio wifi " + status)
+                }
+                function connectwifi(bssid, pass, secureisbool) {
+                    let rawconnectcmd = "nmcli device wifi connect " + bssid
+                    let executecmd = secureisbool ? rawconnectcmd + ' password "' + pass + '"' : rawconnectcmd
+                    connectSource(executecmd)
+                }
+                function getbright() {
+                    connectSource("qdbus org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement/Actions/BrightnessControl org.kde.Solid.PowerManagement.Actions.BrightnessControl.brightness")
+                }
+                function getvol() {
+                    connectSource("pactl get-sink-volume @DEFAULT_SINK@")
+                    connectSource("pactl get-sink-mute @DEFAULT_SINK@")
+                }
+                function getwifistat() {
+                    let wificode = 'nmcli -t -f SSID,BSSID,SIGNAL,SECURITY device wifi list | awk -F \':\' \'BEGIN{print "["} $1!=""{gsub(/"/, "\\\"", $1); b=$2":"$3":"$4":"$5":"$6":"$7; print (L++?",":"") "{\\"ssid\\":\\""$1"\\",\\\"bssid\\":\\""b"\\",\\\"signal\\":"$8",\\\"security\\\":\\""$9"\\"}"} END{print "\\n]"}\' | sed \'s/\\\\:/:/g\' | tr -d \'\\n\'';
+
+                    let bashedlister = "bash << 'EOF'\n" + wificode + "\nEOF"; //my god only eof works, bash -c would take all my backslashes
+
+                    let wifistat = "LANG=C LC_ALL=C nmcli -t -f ACTIVE,SSID,BSSID,SIGNAL,SECURITY device wifi list | sed 's/\\\\:/:/g' | awk -F ':' '$1==" + '"yes"{bssid=$3":"$4":"$5":"$6":"$7":"$8; print "{\\\"ssid\\\":\\\""$2"\\\",\\\"bssid\\\":\\\""bssid"\\\",\\\"signal\\\":"$9",\\\"security\\\":\\\""$10"\\\"}"}' + "'"
+
+                    let bashedstatus = "bash << 'EOF'\n" + wifistat + "\nEOF";
+
+                    connectSource(bashedlister);
+                    connectSource(bashedstatus);
+                }
+                function getwifionoff() {
+                    connectSource("nmcli radio wifi")
+                }
+                onNewData: (sourceName, data) => {
+                    if (sourceName.endsWith(".brightness")) {
+                        quickControls.brightness = parseInt(data["stdout"], 10)
+                        if (!volSlider.pressed) brightSlider.value = quickControls.brightness
+                    }
+                    else if (sourceName.includes("get-sink-volume")) {
+                        let match = data["stdout"].match(/(\d+)%/);
+                        if (match && match[1]) {
+                            quickControls.volume = parseInt(match[1], 10);
+                            if (!volSlider.pressed) volSlider.value = quickControls.volume;
+                        }
+                    }
+                    else if (sourceName.includes("get-sink-mute")) {
+                        quickControls.mute = data["stdout"].includes("yes")
+                    }
+                    else if (sourceName.startsWith("bash << 'EOF'\nnmcli -t -f SSID,BSSID,SIGNAL,SECURITY device wifi list")) {
+                        quickControls.wifilist = JSON.parse(data["stdout"])
+                    }
+                    else if (sourceName.includes('"yes"{bssid=$3":"$4":"$5":"$6":"$7":"$8; print "{\\\"ssid\\\":\\\""$2"\\\",\\\"bssid\\\":\\\""bssid"\\\",\\\"signal\\\":"$9",\\\"security\\\":\\\""$10"\\\"}"}')) {
+                        quickControls.wifistat = (data["stdout"] === "") ? JSON.parse('{"ssid":"","bssid":"","signal":0,"security":""}') : JSON.parse(data["stdout"])
+                    }
+                    else if (sourceName === "nmcli radio wifi") quickControls.wifi = data["stdout"].includes("enabled")
+                    disconnectSource(sourceName)
+                }
+            }
+
+            Timer {
+                interval: 2000
+                running: true
+                repeat: true
+                onTriggered: {
+                    controller.getbright()
+                    controller.getvol()
+                    controller.getwifionoff()
+                }
+            }
+
+            Timer {
+                interval: mainLayout.quickpage === "wifi" ? 240000 : 2000
+                running: quickControls.wifi
+                repeat: true
+                onTriggered: {
+                    if (wifipage.userPasstyping) return
+                    controller.getwifistat()
+                }
+                onRunningChanged: {
+                    if (running) controller.getwifistat()
+                        else quickControls.wifistat = { "ssid": "", "bssid": "", "signal": 0, "security": "" }
+                }
+            }
+
+            RowLayout {
+                Kirigami.Icon {
+                    source: (brightSlider.value >= 50) ? "brightness-high-symbolic" : "brightness-low-symbolic"
+                    width: 16
+                    height: width
+                }
+                PlasmaComponents.Slider {
+                    id: brightSlider
+                    Layout.fillWidth: true
+                    from: 0
+                    to: 10000 // dbus says 10000 so I'll set 10000
+                    stepSize: 100
+                    onMoved: controller.setbright(value)
+                }
+            }
+            RowLayout {
+                PlasmaComponents.ToolButton {
+                    checkable: true
+                    checked: quickControls.mute
+                    icon.name: {
+                        if (quickControls.mute) return "audio-volume-muted-symbolic"
+                            if (volSlider.value >= 66) return "audio-volume-high-symbolic"
+                                if (volSlider.value >= 33) return "audio-volume-medium-symbolic"
+                                    if (volSlider.value >= 0) return "audio-volume-low-symbolic"
+                                        return "audio-volume-muted-symbolic"
+                    }
+                    PlasmaComponents.ToolTip {
+                        text: i18n("Mute")
+                    }
+                    onToggled: controller.setmute(checked)
+                }
+                PlasmaComponents.Slider {
+                    id: volSlider
+                    Layout.fillWidth: true
+                    from: 0
+                    to: 100 // dbus says 10000 so I'll set 10000
+                    stepSize: 1
+                    onMoved: controller.setvol(value)
+                }
+            }
+
+            ColumnLayout {
+                RowLayout {
+                    PlasmaComponents.ToolButton {
+                        checkable: true
+                        checked: quickControls.wifi
+                        icon.name: {
+                            var secure = (quickControls.wifistat.security && quickControls.wifistat.security !== "" && !quickControls.wifistat.security.includes("--") && !quickControls.wifistat.security.includes("[]")) ? "-locked" : ""
+                            return "network-wireless-" + Math.max(Math.ceil(quickControls.wifistat.signal / 20), 1) * 20 + secure
+                        }
+                        onToggled: {
+                            controller.setwifionoff(checked)
+                        }
+                    }
+                    PlasmaComponents.ToolButton {
+                        icon.name: "arrow-right-symbolic"
+                        onClicked: {
+                            mainLayout.quickpage = "wifi";
+                        }
+                    }
+                }
+                PlasmaComponents.Label {
+                    text: quickControls.wifistat && quickControls.wifistat.ssid ? quickControls.wifistat.ssid : i18n("Disconnected")
+                }
+            }
+        }
+
+        ColumnLayout {
+            id: wifipage
+            property bool userPasstyping: false
+
+            visible: mainLayout.quickpage === "wifi"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            //headers
+            RowLayout {
+                PlasmaComponents.ToolButton {
+                    icon.name: "arrow-left-symbolic"
+                    onClicked: {
+                        mainLayout.quickpage = "main";
+                    }
+                }
+                PlasmaComponents.Label {
+                    text: i18n("Networks")
+                    font.bold: true
+                }
+                Item { Layout.fillWidth: true }
+                PlasmaComponents.Switch {
+                    checked: quickControls.wifi
+                    onToggled: {
+                        controller.setwifionoff(checked)
+                    }
+                }
+            }
+
+            //weefee around you
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                PlasmaComponents.ScrollView {
+                    anchors.fill: parent
+                    clip: true
+                    contentWidth: availableWidth
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                    ListView {
+                        id: wifilister
+                        clip: true
+                        model: quickControls.wifilist ? quickControls.wifilist : 0
+                        spacing: Kirigami.Units.smallSpacing
+                        delegate: PlasmaComponents.ItemDelegate {
+                            id: wifientry // tryna cook with names
+
+                            property bool secure: (modelData.security && modelData.security !== "" && !modelData.security.includes("--") && !modelData.security.includes("[]"))
+                            property string strength: {
+                                return "network-wireless-" + Math.max(Math.ceil(modelData.signal / 20), 1) * 20
+                            }
+                            property bool passwording: false
+
+                            height: passwording ? 84 : 56
+                            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuad} }
+                            width: wifilister.width
+                            clip: true
+
+                            contentItem: ColumnLayout {
+                                RowLayout {
+                                    Kirigami.Icon {
+                                        source: {
+                                            return wifientry.secure ? wifientry.strength + "-locked" : wifientry.strength
+                                        }
+                                        width: Kirigami.Units.iconSizes.small
+                                        height: width
+                                    }
+                                    PlasmaComponents.Label {
+                                        id: ssidLabel
+                                        text: modelData.ssid ? modelData.ssid : i18n("Hidden network") + "(" + modelData.bssid + ")"
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+
+                                        PlasmaComponents.ToolTip {
+                                            text: ssidLabel.text
+                                            visible: ssidArea.containsMouse
+                                        }
+
+                                        MouseArea {
+                                            id: ssidArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                        }
+                                    }
+                                    PlasmaComponents.ToolButton {
+                                        text: wifientry.passwording ? i18n("Cancel") : i18n("Connect")
+                                        icon.name: "network-connect"
+                                        onClicked: if (secure) wifientry.passwording = !wifientry.passwording
+                                    }
+                                }
+
+                                // literally handcoded this section
+                                RowLayout {
+                                    id: passwordinput
+                                    visible: opacity > 0
+                                    opacity: wifientry.passwording ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                    property bool hidethepass: true
+
+                                    PlasmaComponents.TextField {
+                                        id: passworder
+                                        Layout.fillWidth: true
+                                        placeholderText: i18n("Password?")
+                                        echoMode: passwordinput.hidethepass ? TextInput.Password : TextInput.Normal
+                                        onActiveFocusChanged: wifipage.userPasstyping = activeFocus
+                                    }
+                                    PlasmaComponents.ToolButton {
+                                        checkable: true
+                                        checked: !passwordinput.hidethepass
+                                        icon.name: passwordinput.hidethepass ? "gnumeric-row-unhide-symbolic" : "gnumeric-row-hide-symbolic" // if this don't look right to you then change it!
+                                        onToggled: passwordinput.hidethepass = !passwordinput.hidethepass
+                                        PlasmaComponents.ToolTip {
+                                            text: passwordinput.hidethepass ? i18n("Unide password") : i18n("Hide password")
+                                        }
+                                    }
+                                    PlasmaComponents.ToolButton {
+                                        icon.name: "network-connect"
+                                        onClicked: {
+                                            controller.connectwifi(modelData.bssid, passworder.text, secure)
+                                            wifientry.passwording = !wifientry.passwording
+                                        }
+                                        PlasmaComponents.ToolTip {
+                                            text: i18n("Connect!")
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

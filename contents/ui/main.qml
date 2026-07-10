@@ -128,7 +128,6 @@ PlasmoidItem {
             }
         }
     }
-    */
 
     compactRepresentation: MouseArea {
         // filling the ideas here, AI is allowed
