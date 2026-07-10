@@ -8,15 +8,11 @@ import org.kde.kirigami as Kirigami
 import Qt5Compat.GraphicalEffects 1.15
 import org.kde.notificationmanager as NotificationManager
 import org.kde.plasma.plasma5support as Plasma5Support
-import org.kde.plasma.networkmanagement as NetworkManagement
 
 // This source code was made with Rubber Duck Debugging™ (joke, the Duck is an AI and I roasted the duck for dinner..!?)
 
 Item {
 id: fullPopup
-    //=============================================\\
-    // PART 1: THE TOASTS (Notification center)    || bro bubble messages, really?
-    //=============================================//
     implicitWidth: Math.max(mainLayout.implicitWidth, 300)
     implicitHeight: Math.max(mainLayout.implicitHeight, 200)
 
@@ -36,6 +32,78 @@ id: fullPopup
         }
         if (urls && urls.length > 0) {
             Qt.openUrlExternally(urls[0]);
+        }
+    }
+
+    // had to make this so listview won't reload model...
+    ListModel {
+        id: wifiListModel
+    }
+
+    // luckily the commands already parsed stuff for us!
+    function updateWeeFeelist(parsedList) {
+        try {
+            let wifis = [];
+            let bssids = parsedList.map(item => item.bssid) // we can map!?
+
+            //remove if wifi is gone, bottom2top
+            for (let wifiModelcount = wifiListModel.count - 1; wifiModelcount >= 0; wifiModelcount--) {
+                let currentBssid = wifiListModel.get(wifiModelcount).bssid
+                if (bssids.indexOf(currentBssid) === -1) wifiListModel.setProperty(wifiModelcount, "removing", true)
+            }
+
+            // add new wifis
+            for (let wificount = 0; wificount < parsedList.length; wificount++) {
+                let exist = false;
+                // scrolls thru wifiListModel to find existing wifi
+                for (let wifiModelcount = 0; wifiModelcount < wifiListModel.count; wifiModelcount++) {
+                    if (wifiListModel.get(wifiModelcount).bssid === parsedList[wificount].bssid) { // 2 is the bssid
+                        exist = true;
+                        // we update the signal strength
+                        if (wifiListModel.get(wifiModelcount).signal !== parsedList[wificount].signal) wifiListModel.setProperty(wifiModelcount, "signal", parsedList[wificount].signal)
+                        break;
+                    }
+                }
+                if (!exist) {
+                    wifiListModel.append({
+                        "ssid": parsedList[wificount].ssid,
+                        "bssid": parsedList[wificount].bssid,
+                        "signal": parsedList[wificount].signal,
+                        "security": parsedList[wificount].security,
+                        "removing": false // add this so we can animate wifi, check out the battery project's SleepBlocker.qml for more
+                    })
+                }
+            }
+
+            // final sort (based on signal)
+            // this is bubble sort, wifi list is not a bunch like 2763... so sorting time might be the same as more efficient ones
+            for (let wifi1 = 0; wifi1 < wifiListModel.count - 1; wifi1++) {
+                for (let wifi2 = wifi1 + 1; wifi2 < wifiListModel.count; wifi2++) {
+
+                    let signal1 = wifiListModel.get(wifi1).signal;
+                    let signal2 = wifiListModel.get(wifi2).signal;
+
+                    if (signal2 > signal1) {
+                        wifiListModel.move(wifi2, wifi1, 1); // so this is move element2 (only element2 because 1               ^) to element1
+                    }
+                }
+            }
+            for (let wifiselected = wifiListModel.count - 1; wifiselected >= 0; wifiselected--) {
+                if (wifiListModel.get(wifiselected).bssid === quickControls.wifistat.bssid) wifiListModel.move(wifiselected, 0, 1)
+                // what if edge cases, someone has 2 wifi cards!? then they can connect 2 wifis at the same time!?!?
+            }
+
+        } catch(e) {
+            console.log("Sum Ting Wong, Hoo Lee Fuk: [" + e + "]"); // dark joke, asiana airlines 214
+        }
+    }
+
+    function removewifi(bssid) {
+        for (let wifiselected = 0; wifiselected < wifiListModel.count; wifiselected++) {
+            if (wifiListModel.get(wifiselected).bssid === bssid) {
+                wifiListModel.remove(wifiselected);
+                break;
+            }
         }
     }
 
@@ -76,6 +144,9 @@ id: fullPopup
         }
 
         Item {
+            //=============================================\\
+            // PART 1: THE TOASTS (Notification center)    || bro bubble messages, really?
+            //=============================================//
             id: notifDisplay
             Layout.fillWidth: true
             height: fullPopup.implicitHeight / 5 * 3
@@ -397,7 +468,7 @@ id: fullPopup
             Plasma5Support.DataSource {
                 id: controller
                 engine: "executable"
-                // this is a hell of a function, base is literally nmcli stuff
+                // this is a hell of functions, it's literally nmcli stuff
 
                 function setbright(int) { // 1st time using vars like this to make code more readable
                     connectSource("qdbus org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement/Actions/BrightnessControl org.kde.Solid.PowerManagement.Actions.BrightnessControl.setBrightness " + int)
@@ -417,6 +488,12 @@ id: fullPopup
                     let executecmd = secureisbool ? rawconnectcmd + ' password "' + pass + '"' : rawconnectcmd
                     connectSource(executecmd)
                 }
+                function disconnectwifi(ssidistring) {
+                    connectSource("nmcli connection down id " + ssidistring)
+                }
+                function refreshwifi() {
+                    connectSource("nmcli device wifi rescan")
+                }
                 function getbright() {
                     connectSource("qdbus org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement/Actions/BrightnessControl org.kde.Solid.PowerManagement.Actions.BrightnessControl.brightness")
                 }
@@ -425,7 +502,7 @@ id: fullPopup
                     connectSource("pactl get-sink-mute @DEFAULT_SINK@")
                 }
                 function getwifistat() {
-                    let wificode = 'nmcli -t -f SSID,BSSID,SIGNAL,SECURITY device wifi list | awk -F \':\' \'BEGIN{print "["} $1!=""{gsub(/"/, "\\\"", $1); b=$2":"$3":"$4":"$5":"$6":"$7; print (L++?",":"") "{\\"ssid\\":\\""$1"\\",\\\"bssid\\":\\""b"\\",\\\"signal\\":"$8",\\\"security\\\":\\""$9"\\"}"} END{print "\\n]"}\' | sed \'s/\\\\:/:/g\' | tr -d \'\\n\'';
+                    let wificode = "nmcli -g SSID,BSSID,SIGNAL,SECURITY device wifi list | awk '"+ 'BEGIN{print "' + '["} match($0, /^([^:]*):(.*):([0-9]+):(.*)$/, m) { s=m[1]; gsub(/"/, "\\\\\\"", s); b=m[2]; gsub(/\\\\/, "", b); print (L++?",":"") "{\\\"ssid\\\":\\\""s"\\\",\\\"bssid\\\":\\\""b"\\\",\\\"signal\\\":"m[3]",\\\"security\\\":\\\""m[4]"\\\"}" } END{print "\\n]"}' + "' | tr -d '\\n'";
 
                     let bashedlister = "bash << 'EOF'\n" + wificode + "\nEOF"; //my god only eof works, bash -c would take all my backslashes
 
@@ -454,13 +531,15 @@ id: fullPopup
                     else if (sourceName.includes("get-sink-mute")) {
                         quickControls.mute = data["stdout"].includes("yes")
                     }
-                    else if (sourceName.startsWith("bash << 'EOF'\nnmcli -t -f SSID,BSSID,SIGNAL,SECURITY device wifi list")) {
+                    else if (sourceName.startsWith("bash << 'EOF'\nnmcli -g SSID,BSSID,SIGNAL,SECURITY device wifi list")) {
                         quickControls.wifilist = JSON.parse(data["stdout"])
+                        fullPopup.updateWeeFeelist(quickControls.wifilist)
                     }
                     else if (sourceName.includes('"yes"{bssid=$3":"$4":"$5":"$6":"$7":"$8; print "{\\\"ssid\\\":\\\""$2"\\\",\\\"bssid\\\":\\\""bssid"\\\",\\\"signal\\\":"$9",\\\"security\\\":\\\""$10"\\\"}"}')) {
                         quickControls.wifistat = (data["stdout"] === "") ? JSON.parse('{"ssid":"","bssid":"","signal":0,"security":""}') : JSON.parse(data["stdout"])
                     }
                     else if (sourceName === "nmcli radio wifi") quickControls.wifi = data["stdout"].includes("enabled")
+                    else if (sourceName === "nmcli device wifi rescan" || sourceName.includes("nmcli connection down id") || sourceName.includes("nmcli device wifi connect")) controller.getwifistat()
                     disconnectSource(sourceName)
                 }
             }
@@ -477,16 +556,16 @@ id: fullPopup
             }
 
             Timer {
-                interval: mainLayout.quickpage === "wifi" ? 240000 : 2000
+                interval: 10000
                 running: quickControls.wifi
                 repeat: true
                 onTriggered: {
-                    if (wifipage.userPasstyping) return
                     controller.getwifistat()
                 }
                 onRunningChanged: {
-                    if (running) controller.getwifistat()
-                        else quickControls.wifistat = { "ssid": "", "bssid": "", "signal": 0, "security": "" }
+                    if (wifipage.userPasstyping) return
+                    else if (running) controller.getwifistat()
+                    else quickControls.wifistat = { "ssid": "", "bssid": "", "signal": 0, "security": "" }
                 }
             }
 
@@ -546,9 +625,7 @@ id: fullPopup
                     }
                     PlasmaComponents.ToolButton {
                         icon.name: "arrow-right-symbolic"
-                        onClicked: {
-                            mainLayout.quickpage = "wifi";
-                        }
+                        onClicked: mainLayout.quickpage = "wifi";
                     }
                 }
                 PlasmaComponents.Label {
@@ -578,6 +655,15 @@ id: fullPopup
                     font.bold: true
                 }
                 Item { Layout.fillWidth: true }
+                PlasmaComponents.ToolButton {
+                    visible: opacity > 0
+                    opacity: quickControls.wifi ? 1 : 0
+                    PlasmaComponents.ToolTip {
+                        text: i18n("Refresh networks")
+                    }
+                    icon.name: "view-refresh-symbolic"
+                    onClicked: if (quickControls.wifi) controller.refreshwifi()
+                }
                 PlasmaComponents.Switch {
                     checked: quickControls.wifi
                     onToggled: {
@@ -601,19 +687,50 @@ id: fullPopup
                     ListView {
                         id: wifilister
                         clip: true
-                        model: quickControls.wifilist ? quickControls.wifilist : 0
+                        model: wifiListModel
                         spacing: Kirigami.Units.smallSpacing
+
+                        displaced: Transition {
+                            NumberAnimation { properties: "y"; duration: 250; easing.type: Easing.OutCubic }
+                        }
+
+                        add: Transition {
+                            NumberAnimation { properties: "height"; duration: 200; from: 0; easing.type: Easing.OutQuad }
+                            NumberAnimation { properties: "opacity"; duration: 200; from: 0; easing.type: Easing.OutQuad }
+                        }
+
+                        remove: Transition {
+                            NumberAnimation { properties: "height"; duration: 200; to: 0; easing.type: Easing.OutQuad }
+                            NumberAnimation { properties: "opacity"; duration: 200; to: 0; easing.type: Easing.OutQuad }
+                        }
+
                         delegate: PlasmaComponents.ItemDelegate {
                             id: wifientry // tryna cook with names
 
-                            property bool secure: (modelData.security && modelData.security !== "" && !modelData.security.includes("--") && !modelData.security.includes("[]"))
+                            property bool secure: (model.security && model.security !== "" && !model.security.includes("--") && !model.security.includes("[]"))
                             property string strength: {
-                                return "network-wireless-" + Math.max(Math.ceil(modelData.signal / 20), 1) * 20
+                                return "network-wireless-" + Math.max(Math.ceil(model.signal / 20), 1) * 20
                             }
                             property bool passwording: false
+                            readonly property bool bye: model.removing === true
 
-                            height: passwording ? 84 : 56
-                            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuad} }
+                            height: 0
+                            opacity: 0
+                            Component.onCompleted: {
+                                opacity = Qt.binding(() => bye ? 0 : 1)
+                                height = Qt.binding(() => bye ? 0 : passwording ? 84 : 56)
+                            }
+                            Behavior on height {
+                                NumberAnimation {
+                                    duration: 250
+                                    easing.type: bye ? Easing.InQuad : Easing.OutQuad
+                                    onRunningChanged: {
+                                        if (!running && wifientry.bye) {
+                                            fullPopup.removewifi(model.bssid);
+                                        }
+                                    }
+                                }
+                            }
                             width: wifilister.width
                             clip: true
 
@@ -628,7 +745,7 @@ id: fullPopup
                                     }
                                     PlasmaComponents.Label {
                                         id: ssidLabel
-                                        text: modelData.ssid ? modelData.ssid : i18n("Hidden network") + "(" + modelData.bssid + ")"
+                                        text: model.ssid ? model.ssid : i18n("Hidden network") + "(" + model.bssid + ")"
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
 
@@ -644,9 +761,13 @@ id: fullPopup
                                         }
                                     }
                                     PlasmaComponents.ToolButton {
-                                        text: wifientry.passwording ? i18n("Cancel") : i18n("Connect")
-                                        icon.name: "network-connect"
-                                        onClicked: if (secure) wifientry.passwording = !wifientry.passwording
+                                        text: wifientry.passwording ? i18n("Cancel") : (model.bssid === quickControls.wifistat.bssid) ? i18n("Disconnect") : i18n("Connect")
+                                        icon.name: (model.bssid === quickControls.wifistat.bssid) ? "network-disconnect-symbolic" : "network-connect-symbolic"
+                                        onClicked: {
+                                            if (model.bssid === quickControls.wifistat.bssid) controller.disconnectwifi(model.ssid)
+                                            else if (secure) wifientry.passwording = !wifientry.passwording
+                                            else controller.connectwifi(model.bssid, "freeee", wifientry.secure)
+                                        }
                                     }
                                 }
 
@@ -664,6 +785,10 @@ id: fullPopup
                                         placeholderText: i18n("Password?")
                                         echoMode: passwordinput.hidethepass ? TextInput.Password : TextInput.Normal
                                         onActiveFocusChanged: wifipage.userPasstyping = activeFocus
+                                        onAccepted: {
+                                            controller.connectwifi(model.bssid, passworder.text, wifientry.secure)
+                                            wifientry.passwording = !wifientry.passwording
+                                        }
                                     }
                                     PlasmaComponents.ToolButton {
                                         checkable: true
@@ -677,7 +802,7 @@ id: fullPopup
                                     PlasmaComponents.ToolButton {
                                         icon.name: "network-connect"
                                         onClicked: {
-                                            controller.connectwifi(modelData.bssid, passworder.text, secure)
+                                            controller.connectwifi(model.bssid, passworder.text, wifientry.secure)
                                             wifientry.passwording = !wifientry.passwording
                                         }
                                         PlasmaComponents.ToolTip {

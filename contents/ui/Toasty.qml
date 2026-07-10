@@ -341,7 +341,7 @@ PlasmaCore.Dialog {
                             wrapMode: Text.WordWrap
                             elide: Text.ElideRight
                             // this guy doesn't know about object shows because he's in Vietnam and speaks Vietnamese!
-                            // OBJECTION!
+                            // ...bạn chắc chưa? (translation: are you sure? proof in 4K:)
                             maximumLineCount: toolButtons.expandDelegate ? 2763 : 3
                             Layout.fillWidth: true
                         }
@@ -405,10 +405,11 @@ PlasmaCore.Dialog {
                         icon.name: "open-menu"
 
                         onClicked: {
-                            // Mở ra và tự neo vào chính cái Button này
+                            //?? wtf ??, not done yet
                             contexts.popup(menuButton)
                         }
                     }
+                    // AI code, don't touch it, I'll fix it later
                     PlasmaComponents.Menu {
                         id: contexts
 
@@ -433,7 +434,7 @@ PlasmaCore.Dialog {
                                     Kirigami.Icon {
                                         source: menuItem.getIconSource(modelData.icon)
                                         implicitWidth: 16 // Size icon chuẩn của Context Menu Plasma 6
-                                        implicitHeight: 16
+                                        implicitHeight: 16 // nah, should be kirigami
                                         Layout.alignment: Qt.AlignVCenter
                                     }
 
