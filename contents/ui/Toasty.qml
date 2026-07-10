@@ -17,7 +17,7 @@ PlasmaCore.Dialog {
     property int targetY: 60
     property int notifWidth: 390
     property var model: win11Notif
-    property string imgURL: (model.urls && model.urls.length > 0) ? model.urls[0].toString() : "/home/itskhang/Pictures/pexels-hson-18701754_44802520.jpg"
+    property string imgURL: (model.urls && model.urls.length > 0) ? model.urls[0].toString() : ""
     property real notifHeight: {
         var shortHeight = 145
         var thumbHeight = 375
