@@ -2,22 +2,24 @@
 Why isn't there an alternative notifications applet?
 
 > [!WARNING]
-> **THIS APPLET IS ONLY FOR PLASMA 6**. NO PLASMA 5 VERSION YET, sorry :)
+> **THIS APPLET IS ONLY FOR PLASMA 6**. NO PLASMA 5 VERSION YET... sorry :)
 
 > [!IMPORTANT]
 > This applet is still in Beta stage. Just expect bugs, I can't fix everything ok?
 
-A (worse features better UI) notifications applet for Plasma (6). Made this out of boredom because KDE's applet is a bit too overwhelming... (or actually they have so much less customization) Inspired from Windows 11.
+A (worse features better UI) notifications applet for Plasma (6). Made this out of boredom because KDE's applet is a bit too overwhelming... (or actually they have so much less customization) 
+Inspired from Windows 11.
 **Features:**
 - A clock on panel
 - A notification center that has:
 - Image previews
-- Progress status as a bar
+- Progress status as a bar (broken as of 5.0a, arghhhhh)
 - Expand / Collapse notifications
 - Close / clear notifications
+- Action center like Windows 10 (might as well change the project's name)
 - Customizations (Not yet)
 
-**Credits:** (No one? just me, myself and an AI assistant (only assist, logics and ideas are all mine))
+**Credits:** (No one? just me, myself and an AI as a(n) ~assistant~ rubber duck (only assist, logics and ideas are all mine, AI is not trusty and I have ran into several issues with it))
 
 **Changelogs:**
 - 1.0a: initial, alpha as fudge
@@ -26,5 +28,6 @@ A (worse features better UI) notifications applet for Plasma (6). Made this out 
 - 3.5b: added progress bars, expand/collapse, fixed stacking notifications for feature expand/collapse notifications
 - 4.0b: improved animations and click toast to open
 - 4.5b: improved expand button and now introducing action buttons!
+- 5.0a: get back to alpha, new action center!
 
-(sorry if my English is unreadable, I'm still trying my best) **🇻🇳 FROM VIỆT NAM WITH LOVE!!! 🪷**
+(sorry if my English is not understandable, I'm still trying my best) **🇻🇳 FROM VIỆT NAM WITH LOVE!!! 🪷**
